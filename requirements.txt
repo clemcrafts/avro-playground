@@ -1,0 +1,4 @@
+requests
+avro
+confluent-kafka==1.7.0
+python-schema-registry-client
