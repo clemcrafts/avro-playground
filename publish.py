@@ -1,3 +1,5 @@
+import io
+from avro.io import DatumReader, BinaryDecoder
 from confluent_kafka.cimpl import Producer, Consumer
 from confluent_kafka.avro import AvroProducer
 from confluent_kafka import avro
@@ -14,9 +16,9 @@ class Producer:
         Initialisation of the AVRO producer along with AVRO schemas.
         """
         # This is what we need to think about. Opinion: simple for now.
-        key_schema = avro.loads("""{"type": "string"}""")
-        value_schema = avro.loads(
-            """{"type": "record",
+        self.key_schema = avro.loads("""{"type": "string"}""")
+        self.value_schema = avro.loads(
+            """{"type": "map",
                 "name": "event",
                 "fields": [
                     {"name": "source_request_id", "type": "string"}]
@@ -26,8 +28,8 @@ class Producer:
                   'schema.registry.url': 'http://0.0.0.0:8081'}
         self.avro_producer = AvroProducer(
             config,
-            default_key_schema=key_schema,
-            default_value_schema=value_schema)
+            default_key_schema=self.key_schema,
+            default_value_schema=self.value_schema)
 
     def produce(self):
         """
@@ -44,6 +46,18 @@ class Producer:
             value=value)
         print("... Message produced")
 
+    def deserialize(self, msg_value):
+        """
+        Deserialize AVRO message consumed.
+        :param obj msg_value: the messaged consumed.
+        :return dict event_dict: the event in a dict format.
+        """
+        reader = DatumReader(self.value_schema)
+        message_bytes = io.BytesIO(msg_value)
+        decoder = BinaryDecoder(message_bytes)
+        event_dict = reader.read(decoder)
+        return event_dict
+
     def consume(self):
         """
         Consume the AVRO-serialised event.
@@ -58,7 +72,9 @@ class Producer:
             msg = kafka_consumer.poll(timeout=0.1)
             if msg is None:
                 continue
-            print(msg)
+            print("Deserialize...")
+            msg_value = self.deserialize(msg.value())
+            print(msg_value)
 
 if __name__ == "__main__":
     producer = Producer()
